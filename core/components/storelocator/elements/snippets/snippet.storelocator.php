@@ -39,6 +39,10 @@ $centerLatitude = $modx->getOption('centerLatitude', $scriptProperties, 52.40441
 $markerImage = $modx->getOption('markerImage', $scriptProperties, '0');
 $sortDir = $modx->getOption('sortDir', $scriptProperties, 'ASC');
 $limit = $modx->getOption('limit', $scriptProperties, 0);
+$tvPrefix = $modx->getOption('tvPrefix', $scriptProperties,'tv.');
+$includeTVs = $modx->getOption('includeTVs',$scriptProperties,0);
+$prepareTVs = $modx->getOption('prepareTVs',$scriptProperties,1);
+$processTVs = $modx->getOption('processTVs',$scriptProperties,0);
 
 // Templating parameters
 $formTpl = $modx->getOption('formTpl', $scriptProperties, 'sl.form');
@@ -101,11 +105,29 @@ foreach($stores as $store) {
 	// Get resource that belongs to the store
 	$resource = $modx->getObject('modResource', $store->get('resource_id'));
 	
+	// Get TVs that belong to resource
+	$tvArray = array();
+	if (!empty($includeTVs)) {
+		$tvs = $resource->getMany('TemplateVars');
+		foreach($tvs as $tv) {
+			if($processTVs) {
+				$tvArray[$tvPrefix . $tv->get('name')] = $tv->renderOutput($store->get('resource_id'));
+			} else {
+				$value = $tv->getValue($store->get('resource_id'));
+				if ($prepareTVs && method_exists($tv, 'prepareOutput')) {
+					$value = $tv->prepareOutput($value);
+				}
+				$tvArray[$tvPrefix . $tv->get('name')] = $value;
+			}
+		}
+	}
+	
 	// If the resource doesn't exist just skip it
 	if ($resource != null) {
 		$resourceArray = $resource->toArray();
 		$storeListOutput .= $storeLocator->getChunk($storeRowTpl, array_merge(
 			$resourceArray,
+			$tvArray,
 			array(
 				'store' => $store->toArray(),
 				'onclick' => 'storeLocatorMap.setCenter(new google.maps.LatLng('.$store->get('latitude').', '.$store->get('longitude').')); storeLocatorMap.setZoom('.$storeZoom.');'
@@ -115,6 +137,7 @@ foreach($stores as $store) {
 		$infoWindowOutput = '';
 		$infoWindowOutput = $storeLocator->getChunk($storeInfoWindowTpl, array_merge(
 			$resourceArray,
+			$tvArray,
 			array(
 				'store' => $store->toArray()
 			)
